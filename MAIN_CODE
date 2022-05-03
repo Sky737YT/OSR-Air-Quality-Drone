@@ -1,0 +1,57 @@
+
+#include "Adafruit_PM25AQI.h"
+#include <STM32SD.h>
+#ifndef SD_DETECT_PIN
+#define SD_DETECT_PIN SD_DETECT_NONE
+#endif
+
+File myFile;
+
+Adafruit_PM25AQI aqi = Adafruit_PM25AQI();
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial) delay(10);
+  Serial.println("Adafruit PMSA003I Air Quality Sensor");
+  Serial.print("Initializing SD card...");
+  while (!SD.begin(SD_DETECT_PIN))
+  {
+    delay(10);
+  }
+  Serial.println("initialization done.");
+  int pm10;
+  delay(1000);
+  if (! aqi.begin_I2C()) {      
+  
+    Serial.println("Could not find PM 2.5 sensor!");
+    while (1) delay(10);
+  }
+
+  Serial.println("PM25 found!");
+}
+
+void loop() {
+  PM25_AQI_Data data;
+  myFile = SD.open("test.txt", FILE_WRITE);
+  delay(10);
+  int pm10 = (data.pm10_env);
+  if (! aqi.read(&data)) {
+    Serial.println("Could not read from AQI");
+    delay(500);  
+    return;
+  }
+  Serial.println("AQI reading success");
+
+  
+Serial.print(F("PM 1.0: ")); Serial.print(data.pm10_env);
+Serial.print(F("\t\tPM 2.5: ")); Serial.print(data.pm25_env);
+Serial.print(F("\t\tPM 10: ")); Serial.println(data.pm100_env);
+char buffer[7];  // -32768 + 0
+sprintf(buffer, "%d", pm10);
+Serial.println(buffer);
+myFile.println(buffer);
+delay(10);
+  Serial.println("SD write sucses");
+  myFile.close();
+  delay(1000);
+}
