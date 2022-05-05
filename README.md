@@ -8,6 +8,6 @@ MAIN TEST Code = Code for the full module (Could be unstable)
 
 PM_2.5_TEST = Code example for the PM sensor
 
-SD_Card_READ&WRITE = SD card Data logger code
+SD_Card_READ&WRITE = Example code for SD card Data logger
 
 STABLE_MAIN_CODE = Full working code for the module
