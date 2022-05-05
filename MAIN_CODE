@@ -23,6 +23,12 @@ void setup()
   }
   int pm10;
   char timeyear;
+  char timemonth;
+  char timeday;
+  char timehour;
+  char timemin;
+  char timesec;
+  
   if (! aqi.begin_I2C()) {      
   
     Serial.println("Could not find PM 2.5 sensor!");
@@ -63,6 +69,12 @@ void loop(){
 
 int pm10 = (data.pm10_env);
 char timeyear = (now.year(), DEC);
+char timemonth = (now.month(), DEC);
+char timeday = (now.day(), DEC);
+char timehour = (now.hour(), DEC);
+char timemin = (now.minute(), DEC);
+char timesec = (now.second(), DEC);
+
 if (! aqi.read(&data)) {
     Serial.println("Could not read from AQI");
     delay(500);  
@@ -94,9 +106,31 @@ if (! aqi.read(&data)) {
     sprintf(buffer, "%d", pm10);
     dataFile.print(",");
     dataFile.print(buffer);
+    Serial.println(buffer);
     dataFile.print(",");
     sprintf(buffer, "%d", timeyear);
     dataFile.print(buffer);
+    Serial.println(buffer);
+    dataFile.print(",");
+    sprintf(buffer, "%d", timemonth);
+    dataFile.print(buffer);
+    Serial.println(buffer);
+    dataFile.print(",");
+    sprintf(buffer, "%d", timeday);
+    dataFile.print(buffer);
+    Serial.println(buffer);
+    dataFile.print(",");
+    sprintf(buffer, "%d", timehour);
+    dataFile.print(buffer);
+    Serial.println(buffer);
+    dataFile.print(",");
+    sprintf(buffer, "%d", timemin);
+    dataFile.print(buffer);
+    Serial.println(buffer);
+    dataFile.print(",");
+    sprintf(buffer, "%d", timesec);
+    dataFile.print(buffer);
+    Serial.println(buffer);
     dataFile.flush(); // use flush to ensure the data written
     Serial.println(buffer);
     delay(1000);
