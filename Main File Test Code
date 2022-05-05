@@ -1,0 +1,141 @@
+
+#include <STM32SD.h>
+#include "Adafruit_PM25AQI.h"
+#include "RTClib.h"
+#ifndef SD_DETECT_PIN
+#define SD_DETECT_PIN SD_DETECT_NONE
+#endif
+Adafruit_PM25AQI aqi = Adafruit_PM25AQI();
+uint32_t A[] = { A0, A1, A2};
+
+RTC_DS1307 rtc;
+
+char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
+File dataFile;
+
+void setup()
+{
+  
+  Serial.begin(9600);
+  while (!Serial) {
+    ;
+  }
+  int pm10;
+  int timeyear, DEC;
+  int timesec, DEC;
+  int timemin, DEC;
+  int timemonth, DEC;
+  int timeday, DEC;
+  int timehour, DEC;
+  if (! aqi.begin_I2C()) {      
+  
+    Serial.println("Could not find PM 2.5 sensor!");
+    while (1) delay(10);
+  }
+
+  Serial.println("PM25 found!");
+  Serial.print("Initializing SD card...");
+  while (!SD.begin(SD_DETECT_PIN))
+  {
+    delay(10);
+  }
+  delay(100);
+  Serial.println("card initialized.");
+  dataFile = SD.open("datalog.csv", FILE_WRITE);
+  if (dataFile) {
+    dataFile.seek(dataFile.size());
+  }
+  else {
+    Serial.println("error opening datalog.csv");
+  }
+
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    Serial.flush();
+    while (1) delay(10);
+  }
+
+  if (! rtc.isrunning()) {
+    Serial.println("RTC is NOT running, let's set the time!");
+    rtc.adjust(DateTime(2022, 5, 4, 20, 20, 0)); //Time Set
+  }
+}
+
+void loop(){
+ PM25_AQI_Data data;
+ DateTime now = rtc.now();
+
+int pm10 = (data.pm10_env);
+int timeyear = now.year();
+int timesec = now.second();
+int timemin = now.minute();
+int timehour = now.hour();
+int timemonth = now.month();
+int timeday = now.day();
+
+if (! aqi.read(&data)) {
+    Serial.println("Could not read from AQI");
+    delay(500);  
+    return;
+  }
+  Serial.println("AQI reading success");
+  Serial.println("------------------------------------------------");
+  Serial.print(F("PM 1.0: ")); Serial.print(data.pm10_env);
+  Serial.print(F("\t\tPM 2.5: ")); Serial.print(data.pm25_env);
+  Serial.print(F("\t\tPM 10: ")); Serial.println(data.pm100_env);
+  Serial.println("------------------------------------------------");
+  Serial.print(now.year(), DEC);
+  Serial.print('/');
+  Serial.print(now.month(), DEC);
+  Serial.print('/');
+  Serial.print(now.day(), DEC);
+  Serial.print(" (");
+  Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
+  Serial.print(") ");
+  Serial.print(now.hour(), DEC);
+  Serial.print(':');
+  Serial.print(now.minute(), DEC);
+  Serial.print(':');
+  Serial.print(now.second(), DEC);
+  Serial.println();
+  Serial.println("------------------------------------------------");
+  if (dataFile) {
+    //was [7]
+    char buffer[7];
+    sprintf(buffer, "%d", timeyear);
+    dataFile.print(buffer);
+    dataFile.print("/");
+    char buffer[9];
+    sprintf(buffer, "%d", timemonth);
+    dataFile.print(buffer);
+    dataFile.print("/");
+    char buffer[10];
+    sprintf(buffer, "%d", timeday);
+    dataFile.print(buffer);
+    dataFile.print("/");
+    char buffer[11];
+    sprintf(buffer, "%d", timehour);
+    dataFile.print(buffer);
+    dataFile.print("/");
+    char buffer[12];
+    sprintf(buffer, "%d", timemin);
+    dataFile.print(buffer);
+    dataFile.print("/");
+    char buffer[13];
+    sprintf(buffer, "%d", timesec);
+    dataFile.print(buffer);
+    dataFile.print(",");
+    char buffer[14];
+    sprintf(buffer, "%d", pm10);
+    dataFile.print(buffer);
+    dataFile.print(",");
+    dataFile.flush(); // use flush to ensure the data written
+    Serial.println(buffer);
+    delay(1000);
+  }
+  else {
+    Serial.println("error on datalog.csv file handle");
+  }
+  delay(100);
+}
