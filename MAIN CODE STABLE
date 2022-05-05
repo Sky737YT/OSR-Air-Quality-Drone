@@ -22,6 +22,8 @@ void setup()
     ;
   }
   int pm10;
+  int pm25;
+  int pm100;
   char timeyear;
   char timemonth;
   char timeday;
@@ -68,6 +70,8 @@ void loop(){
  DateTime now = rtc.now();
 
 int pm10 = (data.pm10_env);
+int pm25 = (data.pm25_env);
+int pm100 = (data.pm100_env);
 char timeyear = (now.year(), DEC);
 char timemonth = (now.month(), DEC);
 char timeday = (now.day(), DEC);
@@ -104,6 +108,14 @@ if (! aqi.read(&data)) {
   if (dataFile) {
     char buffer[7];  // -32768 + 0
     sprintf(buffer, "%d", pm10);
+    dataFile.print(",");
+    dataFile.print(buffer);
+    Serial.println(buffer);
+    sprintf(buffer, "%d", pm25);
+    dataFile.print(",");
+    dataFile.print(buffer);
+    Serial.println(buffer);
+    sprintf(buffer, "%d", pm100);
     dataFile.print(",");
     dataFile.print(buffer);
     Serial.println(buffer);
