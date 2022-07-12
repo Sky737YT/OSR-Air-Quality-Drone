@@ -1,40 +1,36 @@
 
+#include <TinyGPSPlus.h>
+#include <SoftwareSerial.h>
 #include <STM32SD.h>
 #include "Adafruit_PM25AQI.h"
-#include "RTClib.h"
 #ifndef SD_DETECT_PIN
 #define SD_DETECT_PIN SD_DETECT_NONE
 #endif
 Adafruit_PM25AQI aqi = Adafruit_PM25AQI();
+
+static const int RXPin = 9, TXPin = 10;
+static const uint32_t GPSBaud = 9600;
+
 uint32_t A[] = { A0, A1, A2};
 
-RTC_DS1307 rtc;
-
-char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+TinyGPSPlus gps;
+SoftwareSerial ss(RXPin, TXPin);
 
 File dataFile;
 
 void setup()
 {
-  
+  ss.begin(GPSBaud);
   Serial.begin(9600);
   while (!Serial) {
     ;
   }
-  int pm10;
-  int pm25;
-  int pm100;
-  char timeyear;
-  char timemonth;
-  char timeday;
-  char timehour;
-  char timemin;
-  char timesec;
-  
-  if (! aqi.begin_I2C()) {      
-  
+  Serial.print("Starting...");
+  delay(1000);
+  if (! aqi.begin_I2C()) {
+
     Serial.println("Could not find PM 2.5 sensor!");
-    while (1) delay(10);
+    //while (1) delay(10);
   }
 
   Serial.println("PM25 found!");
@@ -53,102 +49,217 @@ void setup()
     Serial.println("error opening datalog.csv");
   }
 
-  if (! rtc.begin()) {
-    Serial.println("Couldn't find RTC");
-    Serial.flush();
-    while (1) delay(10);
-  }
-
-  if (! rtc.isrunning()) {
-    Serial.println("RTC is NOT running, let's set the time!");
-    rtc.adjust(DateTime(2022, 5, 4, 20, 20, 0)); //Time Set
-  }
 }
 
-void loop(){
- PM25_AQI_Data data;
- DateTime now = rtc.now();
+void loop() {
+  PM25_AQI_Data data;
 
-int pm10 = (data.pm10_env);
-int pm25 = (data.pm25_env);
-int pm100 = (data.pm100_env);
-char timeyear = (now.year(), DEC);
-char timemonth = (now.month(), DEC);
-char timeday = (now.day(), DEC);
-char timehour = (now.hour(), DEC);
-char timemin = (now.minute(), DEC);
-char timesec = (now.second(), DEC);
-
-if (! aqi.read(&data)) {
+  if (! aqi.read(&data)) {
     Serial.println("Could not read from AQI");
-    delay(500);  
+    delay(500);
     return;
   }
+
+  #define VBATPIN A6
+  float measuredvbat = analogRead(VBATPIN);
+  measuredvbat *= 2;    // we divided by 2, so multiply back
+  measuredvbat *= 3.3;  // Multiply by 3.3V, our reference voltage
+  measuredvbat /= 1024; // convert to voltage
+  Serial.print("VBat: " ); Serial.println(measuredvbat);
+
+static const double LONDON_LAT = 51.508131, LONDON_LON = -0.128002;
+
+  printInt(gps.satellites.value(), gps.satellites.isValid(), 5);
+  printFloat(gps.hdop.hdop(), gps.hdop.isValid(), 6, 1);
+  printFloat(gps.location.lat(), gps.location.isValid(), 11, 6);
+  printFloat(gps.location.lng(), gps.location.isValid(), 12, 6);
+  printInt(gps.location.age(), gps.location.isValid(), 5);
+  printDateTime(gps.date, gps.time);
+  printFloat(gps.altitude.feet(), gps.altitude.isValid(), 7, 2);
+  printFloat(gps.course.deg(), gps.course.isValid(), 7, 2);
+  printFloat(gps.speed.kmph(), gps.speed.isValid(), 6, 2);
+  printStr(gps.course.isValid() ? TinyGPSPlus::cardinal(gps.course.deg()) : "*** ", 6);
+
+  unsigned long distanceKmToLondon =
+    (unsigned long)TinyGPSPlus::distanceBetween(
+      gps.location.lat(),
+      gps.location.lng(),
+      LONDON_LAT, 
+      LONDON_LON) / 1000;
+  printInt(distanceKmToLondon, gps.location.isValid(), 9);
+
+  double courseToLondon =
+    TinyGPSPlus::courseTo(
+      gps.location.lat(),
+      gps.location.lng(),
+      LONDON_LAT, 
+      LONDON_LON);
+
+  printFloat(courseToLondon, gps.location.isValid(), 7, 2);
+
+  const char *cardinalToLondon = TinyGPSPlus::cardinal(courseToLondon);
+
+  printStr(gps.location.isValid() ? cardinalToLondon : "*** ", 6);
+
+  printInt(gps.charsProcessed(), true, 6);
+  printInt(gps.sentencesWithFix(), true, 10);
+  printInt(gps.failedChecksum(), true, 9);
+  Serial.println();
+  
+  smartDelay(1000);
+
+  if (millis() > 5000 && gps.charsProcessed() < 10)
+    Serial.println(F("No GPS data received: check wiring"));
+
   Serial.println("AQI reading success");
-  Serial.println("------------------------------------------------");
+  Serial.println(" ");
   Serial.print(F("PM 1.0: ")); Serial.print(data.pm10_env);
   Serial.print(F("\t\tPM 2.5: ")); Serial.print(data.pm25_env);
   Serial.print(F("\t\tPM 10: ")); Serial.println(data.pm100_env);
-  Serial.println("------------------------------------------------");
-  Serial.print(now.year(), DEC);
-  Serial.print('/');
-  Serial.print(now.month(), DEC);
-  Serial.print('/');
-  Serial.print(now.day(), DEC);
-  Serial.print(" (");
-  Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
-  Serial.print(") ");
-  Serial.print(now.hour(), DEC);
-  Serial.print(':');
-  Serial.print(now.minute(), DEC);
-  Serial.print(':');
-  Serial.print(now.second(), DEC);
-  Serial.println();
-  Serial.println("------------------------------------------------");
+  Serial.println(" ");
+  
   if (dataFile) {
-    char buffer[7];  // -32768 + 0
-    sprintf(buffer, "%d", pm10);
-    dataFile.print(",");
+//PM Values
+    char buffer[10];  // -32768 + 0
+    sprintf(buffer, "%d,", data.pm10_env);
+    dataFile.println(" ,");
     dataFile.print(buffer);
-    Serial.println(buffer);
-    sprintf(buffer, "%d", pm25);
-    dataFile.print(",");
+    Serial.print ("PM 1.0: "); Serial.println(buffer);
+    sprintf(buffer, "%d,", data.pm25_env);
     dataFile.print(buffer);
-    Serial.println(buffer);
-    sprintf(buffer, "%d", pm100);
-    dataFile.print(",");
+    Serial.print ("PM 2.5: "); Serial.println(buffer);
+    sprintf(buffer, "%d,", data.pm100_env);
     dataFile.print(buffer);
-    Serial.println(buffer);
+    Serial.print ("PM 10: "); Serial.println(buffer);
     dataFile.print(",");
-    sprintf(buffer, "%d", timeyear);
-    dataFile.print(buffer);
-    Serial.println(buffer);
+    
+// GPS Data
+    String lt(gps.location.lat(), 8);
+    dataFile.print(lt.c_str());
     dataFile.print(",");
-    sprintf(buffer, "%d", timemonth);
-    dataFile.print(buffer);
-    Serial.println(buffer);
+    String lo(gps.location.lng(), 8);
+    dataFile.print(lo.c_str());
     dataFile.print(",");
-    sprintf(buffer, "%d", timeday);
-    dataFile.print(buffer);
-    Serial.println(buffer);
+    String datemonth(gps.date.month());
+    dataFile.print(datemonth.c_str());
+    dataFile.print("/");
+    String dateday(gps.date.day());
+    dataFile.print(dateday.c_str());
+    dataFile.print("/");
+    String dateyear(gps.date.year());
+    dataFile.print(dateyear.c_str());
     dataFile.print(",");
-    sprintf(buffer, "%d", timehour);
-    dataFile.print(buffer);
-    Serial.println(buffer);
+    
+    if (gps.time.hour() < 10) dataFile.print("0");
+    String timehour(gps.time.hour());
+    dataFile.print(timehour.c_str());
+    dataFile.print(":");
+    if (gps.time.minute() < 10) dataFile.print("0");
+    String timemin(gps.time.minute());
+    dataFile.print(timemin.c_str());
+    dataFile.print(":");
+    if (gps.time.second() < 10) dataFile.print("0");
+    String timesecond(gps.time.second());
+    dataFile.print(timesecond.c_str());
     dataFile.print(",");
-    sprintf(buffer, "%d", timemin);
-    dataFile.print(buffer);
-    Serial.println(buffer);
+    
+
+    String alt(gps.altitude.feet(),7);
+    dataFile.print(alt.c_str());
     dataFile.print(",");
-    sprintf(buffer, "%d", timesec);
-    dataFile.print(buffer);
-    Serial.println(buffer);
+
+  
+    
+// Clean up
     dataFile.flush(); // use flush to ensure the data written
-    Serial.println(buffer);
+    Serial.println("-------------------------------");
+    while (dataFile.available()) {
+      Serial.println(dataFile.read());
+      Serial.println("-------------------------------");
+    }
     delay(1000);
   }
   else {
     Serial.println("error on datalog.csv file handle");
   }
   delay(100);
+}
+static void smartDelay(unsigned long ms)
+{
+  unsigned long start = millis();
+  do 
+  {
+    while (ss.available())
+      gps.encode(ss.read());
+  } while (millis() - start < ms);
+}
+
+static void printFloat(float val, bool valid, int len, int prec)
+{
+  if (!valid)
+  {
+    while (len-- > 1)
+      Serial.print('*');
+    Serial.print(' ');
+  }
+  else
+  {
+    Serial.print(val, prec);
+    int vi = abs((int)val);
+    int flen = prec + (val < 0.0 ? 2 : 1); // . and -
+    flen += vi >= 1000 ? 4 : vi >= 100 ? 3 : vi >= 10 ? 2 : 1;
+    for (int i=flen; i<len; ++i)
+      Serial.print(' ');
+  }
+  smartDelay(0);
+}
+
+static void printInt(unsigned long val, bool valid, int len)
+{
+  char sz[32] = "*****************";
+  if (valid)
+    sprintf(sz, "%ld", val);
+  sz[len] = 0;
+  for (int i=strlen(sz); i<len; ++i)
+    sz[i] = ' ';
+  if (len > 0) 
+    sz[len-1] = ' ';
+  Serial.print(sz);
+  smartDelay(0);
+}
+
+static void printDateTime(TinyGPSDate &d, TinyGPSTime &t)
+{
+  if (!d.isValid())
+  {
+    Serial.print(F("********** "));
+  }
+  else
+  {
+    char sz[32];
+    sprintf(sz, "%02d/%02d/%02d ", d.month(), d.day(), d.year());
+    Serial.print(sz);
+  }
+  
+  if (!t.isValid())
+  {
+    Serial.print(F("******** "));
+  }
+  else
+  {
+    char sz[32];
+    sprintf(sz, "%02d:%02d:%02d ", t.hour(), t.minute(), t.second());
+    Serial.print(sz);
+  }
+
+  printInt(d.age(), d.isValid(), 5);
+  smartDelay(0);
+}
+
+static void printStr(const char *str, int len)
+{
+  int slen = strlen(str);
+  for (int i=0; i<len; ++i)
+    Serial.print(i<slen ? str[i] : ' ');
+  smartDelay(0);
 }
