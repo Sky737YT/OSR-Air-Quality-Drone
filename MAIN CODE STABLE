@@ -15,7 +15,6 @@ uint32_t A[] = { A0, A1, A2};
 
 TinyGPSPlus gps;
 SoftwareSerial ss(RXPin, TXPin);
-
 File dataFile;
 
 void setup()
@@ -53,7 +52,6 @@ void setup()
 
 void loop() {
   PM25_AQI_Data data;
-
   if (! aqi.read(&data)) {
     Serial.println("Could not read from AQI");
     delay(500);
@@ -171,16 +169,14 @@ static const double LONDON_LAT = 51.508131, LONDON_LON = -0.128002;
   
     
 // Clean up
-    dataFile.flush(); // use flush to ensure the data written
-    Serial.println("-------------------------------");
-    while (dataFile.available()) {
-      Serial.println(dataFile.read());
-      Serial.println("-------------------------------");
+    dataFile.flush();
+    Serial.println("");
+    Serial.print("File Size: ");
+    Serial.println(dataFile.size());
+    if (dataFile.size() < 10) {
+      Serial.println("ERROR LOW FILE SIZE");
     }
-    delay(1000);
-  }
-  else {
-    Serial.println("error on datalog.csv file handle");
+    Serial.println("-------------------------------");
   }
   delay(100);
 }
